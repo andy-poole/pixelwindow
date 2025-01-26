@@ -1,0 +1,1114 @@
+
+/**
+ * PixelWindow - A simple callback-based window abstraction.
+ *
+ * Copyright (C) 2025 Andy Poole
+ *
+ * This code is licensed under the MIT licence. Please see
+ * LICENSE.md in http://www.github.com/andy-poole/pixelwindow
+ */
+
+#ifndef AP_PIXELWINDOW_H
+#define AP_PIXELWINDOW_H
+
+#include <array>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif // WIN32_LEAN_AND_MEAN
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif // NOMINMAX
+
+#include <windows.h>
+#include <windowsx.h>
+#include <shellapi.h>
+
+namespace ap {
+
+/**
+ * Keyboard key enumerations
+ */
+enum class Key
+{
+    NONE,
+    ENTER,
+    ESC,
+    SPACE,
+    LEFT,
+    UP,
+    RIGHT,
+    DOWN,
+    NUM0,
+    NUM1,
+    NUM2,
+    NUM3,
+    NUM4,
+    NUM5,
+    NUM6,
+    NUM7,
+    NUM8,
+    NUM9,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+};
+
+/**
+ * Mouse button enumerations
+ */
+enum class Mouse
+{
+    NONE,
+    LEFT,
+    MIDDLE,
+    RIGHT,
+    X1,
+    X2,
+};
+
+/**
+ * 2D Point with x and y coordinates
+ */
+struct Point
+{
+    int x;
+    int y;
+
+    constexpr bool operator==(const Point& other) const
+    {
+        return (x == other.x) && (y == other.y);
+    }
+
+    constexpr bool operator!=(const Point& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+/**
+ * 2D Size with width and height dimensions
+ */
+struct Size
+{
+    unsigned w;
+    unsigned h;
+
+    constexpr bool operator==(const Size& other) const
+    {
+        return (w == other.w) && (h == other.h);
+    }
+
+    constexpr bool operator!=(const Size& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+/**
+ * Rect with a top-left origin and a size
+ */
+struct Rect
+{
+    Point origin;
+    Size size;
+
+    constexpr bool operator==(const Rect& other) const
+    {
+        return (origin == other.origin) && (size == other.size);
+    }
+
+    constexpr bool operator!=(const Rect& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+/**
+ * 32-bit RGBA Pixel structure
+ *
+ * The internal format of the pixel is BGRA
+ * and stored in memory as [ BB GG RR AA ] on
+ * on a little-endian systems.
+ */
+union Pixel
+{
+    uint32_t raw = 0;
+    struct { uint8_t b, g, r, a; } bgra;
+
+    constexpr Pixel() = default;
+
+    constexpr Pixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+    {
+        // Internally stored as BGRA
+        raw = (uint32_t(a) << 24) |
+              (uint32_t(r) << 16) |
+              (uint32_t(g) <<  8) |
+              (uint32_t(b));
+    }
+
+    constexpr bool operator==(const Pixel& other) const
+    {
+        return raw == other.raw;
+    }
+
+    constexpr bool operator!=(const Pixel& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+// Ensure no extra padding is added
+static_assert(sizeof(Pixel) == 4);
+
+/**
+ * PixelWindow callback interface
+ *
+ * Provides callbacks that a derived class may override.
+ * In addition, this class provides the basic enumerations
+ * and structures that derived classes can use.
+ *
+ * Note that derived classes do not have to implement
+ * the interfaces defined here.
+ */
+class IPixelWindow
+{
+public:
+    /**
+     * Version: v0.1.0
+     * Format:  major=[15..12], minor=[11..8], patch[7..0]
+     */
+    static constexpr uint16_t VERSION = 0x0100;
+
+    /**
+     * Public IPixelWindow destructor
+     */
+    virtual ~IPixelWindow() = default;
+
+protected:
+    /**
+     * Protected IPixelWindow constructor
+     */
+    IPixelWindow() = default;
+
+    /**
+     * Callback called on window creation
+     *
+     * This callback is called after the window was created
+     * but before it is displayed. The function is called
+     * with the window width and height.
+     *
+     * The size of the canvas can be queried in this
+     * function.
+     *
+     * @param width Width of the window in pixels
+     * @param height Height of the window in pixels
+     */
+    virtual void OnCreate(unsigned width, unsigned height) { (void)width; (void)height; }
+
+    /**
+     * Callback called on window destroy
+     *
+     * This callback is called just before the window has
+     * been destroyed.
+     */
+    virtual void OnDestroy() {}
+
+    /**
+     * Callback called when the focus changes
+     *
+     * A window in the foreground has focus whereas a
+     * window in the background loses focus.
+     *
+     * @param hasFocus Focus state of the window
+     */
+    virtual void OnFocusChanged(bool hasFocus) { (void)hasFocus; }
+
+    /**
+     * Callback called when a file is dropped
+     *
+     * When a user drags and drops a file onto the window,
+     * this function will be called with the path.
+     *
+     * @param path Path of the dropped file
+     */
+    virtual void OnDropFile(const std::string& path) { (void)path; }
+
+    /**
+     * Callback called on a frame update
+     *
+     * This function is called in the message loop when
+     * the canvas's contents should be updated. Use this
+     * this function to "render" any graphical content to
+     * the canvas by using the SetPixel and DrawRect
+     * functions.
+     *
+     * This function is called as close to the update rate
+     * as possible. The actual amount of time elapsed since
+     * the last call to this function is passed as a
+     * parameter.
+     *
+     * Returning true from this function signals that the
+     * canvas has been updated and should be presented to
+     * the window. Returning false from this function
+     * signals that the window should not be updated from
+     * the canvas.
+     *
+     * @param millis Time since last call in milliseconds
+     * @return true if the canvas should be presented
+     */
+    virtual bool OnUpdateFrame(double millis) { (void)millis; return false; }
+
+    /**
+     * Callback called on a mouse button event
+     *
+     * This function is called synchronously as part of the
+     * window's message loop when checking window mouse
+     * events - it will not be called asynchronously and
+     * interrupt another callback.
+     *
+     * The function is passed a boolean to signal whether
+     * the key was pressed (true) or released (false). The
+     * window coordinates of mouse's location is also
+     * passed to the function. Please note these are
+     * window coordinates and not the coordinates on the
+     * canvas.
+     *
+     * @param btn Button event enumeration
+     * @param x x-coordinate of the button event
+     * @param y y-coordinate of the button event
+     * @param down true if pressed, false if released
+     */
+    virtual void OnMouseClick(Mouse btn, int x, int y, bool down) { (void)btn; (void)x; (void)y; (void)down; }
+
+    /**
+     * Callback called on a keyboard key event
+     *
+     * This function is called synchronously as part of the
+     * window's message loop when checking window key
+     * events - it will not be called asynchronously and
+     * interrupt another callback.
+     *
+     * The function is passed a boolean to signal whether
+     * the key was pressed (true) or released (false).
+     *
+     * @param key Key event enumeration
+     * @param down true if pressed, false if released
+     */
+    virtual void OnKeyPress(Key key, bool down) { (void)key; (void)down; }
+
+    /**
+     * Callback called on window resize event
+     *
+     * This function is called synchronously as part of the
+     * window's message loop when checking window resize
+     * events - it will not be called asynchronously and
+     * interrupt another callback.
+     *
+     * The function is passed the new window size.
+     *
+     * @param width Width of the window in pixels
+     * @param height Height of the window in pixels
+     */
+    virtual void OnResize(unsigned width, unsigned height) { (void)width; (void)height; }
+};
+
+/**
+ * PixelWindowBase0 abstract class
+ *
+ * This class provides common utility functionality
+ * for the PixelWindowBase class.
+ */
+class PixelWindowBase0
+{
+public:
+    /**
+     * Public PixelWindowBase0 destructor
+     */
+    ~PixelWindowBase0() = default;
+
+protected:
+    /**
+     * Protected PixelWindowBase0 constructor
+     */
+    PixelWindowBase0() = default;
+
+    /**
+     * Returns the size and position for where to blit a
+     * source area to a destination area. The source area
+     * will be scaled so that it fits inside the destination
+     * and maintains its aspect ratio. It will also be
+     * positioned central to the destination area by adding
+     * horizontal or vertical bars (as appropriate).
+     *
+     * @param srcSize Size of the src rectangle
+     * @param dstSize Size of the dst rectangle
+     * @return Rectangle of the scaled area's size and position
+     */
+    static Rect GetScaledRect(const Size& srcSize, const Size& dstSize)
+    {
+        // Fast exit for edge cases
+        if (srcSize.w == 0 || srcSize.h == 0 ||
+            dstSize.w == 0 || dstSize.h == 0) {
+            return {};
+        }
+
+        const double sx = static_cast<double>(dstSize.w) / srcSize.w;
+        const double sy = static_cast<double>(dstSize.h) / srcSize.h;
+
+        // Use minimum scale to preserve aspect ratio
+        const double scale = (sx < sy) ? sx : sy;
+
+        // Calculate final dimensions size
+        const unsigned width  = static_cast<unsigned>(srcSize.w * scale);
+        const unsigned height = static_cast<unsigned>(srcSize.h * scale);
+
+        Rect rect = {};
+        rect.size.w = width;
+        rect.size.h = height;
+        rect.origin.x = static_cast<int>(dstSize.w - width) / 2;
+        rect.origin.y = static_cast<int>(dstSize.h - height) / 2;
+
+        return rect;
+    }
+};
+
+/**
+ * PixelWindowBase abstract class
+ *
+ * The PixelWindowBase class provides the base, and the
+ * implementation-specific functionality for the
+ * PixelWindow class.
+ *
+ * This base class is implemented specifically to use the
+ * Win32 API for the Windows operating system
+ */
+template <typename Derived>
+class PixelWindowBase : public IPixelWindow, private PixelWindowBase0
+{
+    // Allow the Derived class to access private data of
+    // this class to prevent further derived classes from
+    // accessing unnecessary private state.
+    // Making internal state 'protected' would allow all
+    // subclasses access to the implementation details.
+    friend Derived;
+
+public:
+    /**
+     * Win32-specific native window handle.
+     */
+    struct NativeHandle {
+        HINSTANCE hinstance;
+        HWND hwnd;
+    };
+
+    /**
+     * Public PixelWindowBase destructor
+     */
+    ~PixelWindowBase() override = default;
+
+protected:
+    /**
+     * Protected PixelWindowBase constructor
+     */
+    PixelWindowBase() = default;
+
+private:
+    static constexpr std::array<Key,256> BuildKeyMap()
+    {
+        // Compile-time construction of
+        // the keyboard key map consisting
+        // of 8-bit Win32 Virtual Key Codes
+        std::array<Key, 256> map = {};
+        map[0x0d] = Key::ENTER;
+        map[0x1b] = Key::ESC;
+        map[0x20] = Key::SPACE;
+        map[0x25] = Key::LEFT;
+        map[0x26] = Key::UP;
+        map[0x27] = Key::RIGHT;
+        map[0x28] = Key::DOWN;
+        map[0x30] = Key::NUM0;
+        map[0x31] = Key::NUM1;
+        map[0x32] = Key::NUM2;
+        map[0x33] = Key::NUM3;
+        map[0x34] = Key::NUM4;
+        map[0x35] = Key::NUM5;
+        map[0x36] = Key::NUM6;
+        map[0x37] = Key::NUM7;
+        map[0x38] = Key::NUM8;
+        map[0x39] = Key::NUM9;
+        map[0x41] = Key::A;
+        map[0x42] = Key::B;
+        map[0x43] = Key::C;
+        map[0x44] = Key::D;
+        map[0x45] = Key::E;
+        map[0x46] = Key::F;
+        map[0x47] = Key::G;
+        map[0x48] = Key::H;
+        map[0x49] = Key::I;
+        map[0x4a] = Key::J;
+        map[0x4b] = Key::K;
+        map[0x4c] = Key::L;
+        map[0x4d] = Key::M;
+        map[0x4e] = Key::N;
+        map[0x4f] = Key::O;
+        map[0x50] = Key::P;
+        map[0x51] = Key::Q;
+        map[0x52] = Key::R;
+        map[0x53] = Key::S;
+        map[0x54] = Key::T;
+        map[0x55] = Key::U;
+        map[0x56] = Key::V;
+        map[0x57] = Key::W;
+        map[0x58] = Key::X;
+        map[0x59] = Key::Y;
+        map[0x5a] = Key::Z;
+        return map;
+    }
+
+    void WindowTitleUpdated(double fps, bool showFps)
+    {
+        if (hwnd_) {
+            char str[256] = {};
+            if (showFps) {
+                snprintf(str, sizeof(str), "%s (fps: %.1f)", windowTitle_.c_str(), fps);
+            } else {
+                snprintf(str, sizeof(str), "%s", windowTitle_.c_str());
+            }
+            SetWindowTextA(hwnd_, str);
+        }
+    }
+
+    void WindowSizeUpdated()
+    {
+        if (!hwnd_ || !hdc_) {
+            return;
+        }
+
+        // Clear areas of the window not covered by the canvas
+        const RECT rect = {
+            0, 0,
+            static_cast<LONG>(windowSize_.w),
+            static_cast<LONG>(windowSize_.h)
+        };
+
+        FillRect(hdc_, &rect, hbrush_);
+
+        // Cache for blitting the canvas to window
+        scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
+    }
+
+    void CanvasSizeUpdated()
+    {
+        auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
+        canvasData_.resize(pixels);
+
+        canvasBitmapInfo_ = {};
+        BITMAPINFOHEADER& h = canvasBitmapInfo_.bmiHeader;
+        h.biSize = sizeof(BITMAPINFOHEADER);
+        h.biWidth = static_cast<LONG>(canvasSize_.w);
+        h.biHeight = -static_cast<LONG>(canvasSize_.h); // -ve for top-left origin
+        h.biPlanes = 1;
+        h.biBitCount = sizeof(Pixel) * 8;
+        h.biCompression = BI_RGB;
+
+        // Cache for blitting the canvas to window
+        scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
+    }
+
+    static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        // Will be null before WM_CREATE message
+        auto window = reinterpret_cast<PixelWindowBase*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+        if (!window && msg != WM_CREATE) {
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+        }
+
+        switch (msg) {
+        case WM_CREATE: {
+            CREATESTRUCT* create = reinterpret_cast<CREATESTRUCT*>(lParam);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+            return 0;
+        }
+        case WM_CLOSE: {
+            DestroyWindow(hwnd); // sends WM_DESTROY
+            return 0;
+        }
+        case WM_DESTROY: {
+            // Window being destroyed: call callback
+            window->OnDestroy();
+            ReleaseDC(hwnd, window->hdc_);
+            PostQuitMessage(0); // sends WM_QUIT
+            return 0;
+        }
+        case WM_SIZE: {
+            if (wParam == SIZE_MINIMIZED) {
+                return 0;
+            }
+            window->windowSize_ = { LOWORD(lParam), HIWORD(lParam) };
+            window->WindowSizeUpdated();
+            window->OnResize(window->windowSize_.w, window->windowSize_.h);
+            return 0;
+        }
+        case WM_DROPFILES: {
+            // +1 for null terminator
+            const auto size = DragQueryFileA((HDROP)wParam, 0, nullptr, 0) + 1;
+            auto buf = std::vector<CHAR>(size);
+            DragQueryFileA((HDROP)wParam, 0, buf.data(), size);
+
+            window->OnDropFile(std::string(buf.data()));
+            DragFinish((HDROP)wParam);
+            return 0;
+        }
+        case WM_SETFOCUS: {
+            window->OnFocusChanged(true);
+            return 0;
+        }
+        case WM_KILLFOCUS: {
+            window->OnFocusChanged(false);
+            return 0;
+        }
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN: {
+            const auto idx = wParam;
+            window->OnKeyPress((idx < window->keyMap_.size()) ? window->keyMap_[idx] : Key::NONE, true);
+            return 0;
+        }
+        case WM_KEYUP:
+        case WM_SYSKEYUP: {
+            const auto idx = wParam;
+            window->OnKeyPress((idx < window->keyMap_.size()) ? window->keyMap_[idx] : Key::NONE, false);
+            return 0;
+        }
+        case WM_LBUTTONDOWN: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::LEFT, x, y, true);
+            return 0;
+        }
+        case WM_LBUTTONUP: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::LEFT, x, y, false);
+            return 0;
+        }
+        case WM_MBUTTONDOWN: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::MIDDLE, x, y, true);
+            return 0;
+        }
+        case WM_MBUTTONUP: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::MIDDLE, x, y, false);
+            return 0;
+        }
+        case WM_RBUTTONDOWN: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::RIGHT, x, y, true);
+            return 0;
+        }
+        case WM_RBUTTONUP: {
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(Mouse::RIGHT, x, y, false);
+            return 0;
+        }
+        case WM_XBUTTONDOWN: {
+            const auto btn = (HIWORD(wParam) == XBUTTON1) ? Mouse::X1 : Mouse::X2;
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(btn, x, y, true);
+            return 0;
+        }
+        case WM_XBUTTONUP: {
+            const auto btn = (HIWORD(wParam) == XBUTTON1) ? Mouse::X1 : Mouse::X2;
+            const int x = GET_X_LPARAM(lParam);
+            const int y = GET_Y_LPARAM(lParam);
+            window->OnMouseClick(btn, x, y, false);
+            return 0;
+        }
+        default:
+            break;
+        }
+
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+
+    bool BeginMainLoop()
+    {
+        // Must be destroyed with DeleteObject
+        hbrush_ = CreateSolidBrush(RGB(0, 0, 0));
+
+        wndclass_.style = CS_OWNDC;
+        wndclass_.lpfnWndProc = WndProc;
+        wndclass_.cbClsExtra = 0;
+        wndclass_.cbWndExtra = 0;
+        wndclass_.hInstance = GetModuleHandle(nullptr);
+        wndclass_.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+        wndclass_.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wndclass_.hbrBackground = hbrush_;
+        wndclass_.lpszMenuName = nullptr;
+        wndclass_.lpszClassName = "pixelwindow_class";
+
+        if (RegisterClassA(&wndclass_) == 0) {
+            return false;
+        };
+
+        DWORD dwStyle = WS_OVERLAPPEDWINDOW;
+
+        // Window size accounting for the style
+        // (includes title bar and borders)
+        RECT windowRect = { 0, 0, (LONG)windowSize_.w, (LONG)windowSize_.h };
+        AdjustWindowRect(&windowRect, dwStyle, false);
+
+        hwnd_ = CreateWindowA(
+            wndclass_.lpszClassName,
+            windowTitle_.c_str(),
+            dwStyle,
+            CW_USEDEFAULT, // x
+            CW_USEDEFAULT, // y
+            windowRect.right - windowRect.left,
+            windowRect.bottom - windowRect.top,
+            nullptr, // parent
+            nullptr, // menu
+            GetModuleHandle(nullptr),
+            this // lpParam
+        );
+
+        if (!hwnd_) {
+            return false;
+        }
+
+        DragAcceptFiles(hwnd_, true);
+
+        // Device/Graphics context for the window
+        hdc_ = GetDC(hwnd_);
+
+        WindowSizeUpdated();
+        CanvasSizeUpdated();
+
+        native_ = {};
+        native_.hinstance = GetModuleHandle(nullptr);
+        native_.hwnd = hwnd_;
+
+        // Window created: call callback
+        OnCreate(windowSize_.w, windowSize_.h);
+
+        ShowWindow(hwnd_, SW_SHOWNORMAL);
+
+        return true;
+    }
+
+    bool HandleMessages()
+    {
+        bool quit = false;
+
+        // Handle queued messages
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                quit = true;
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+
+        return !quit;
+    }
+
+    void WaitForVSync()
+    {
+        // TODO
+    }
+
+    void Present(const Rect& dstRect)
+    {
+        if (!hwnd_ || !hdc_ || !dstRect.size.w || !dstRect.size.h) {
+            return;
+        }
+
+        // Windows can perform the scaling, so we don't
+        // need additional scaled canvas data or size
+
+        StretchDIBits(
+            hdc_,
+            dstRect.origin.x, // dest x
+            dstRect.origin.y, // dest y
+            dstRect.size.w,   // dest width
+            dstRect.size.h,   // dest height
+            0, 0,             // src x,y
+            canvasSize_.w,    // src width
+            canvasSize_.h,    // src height
+            canvasData_.data(),
+            &canvasBitmapInfo_,
+            DIB_RGB_COLORS,
+            SRCCOPY
+        );
+
+        // Block until the compositor has finished
+        // compositing this frame.
+        WaitForVSync();
+    }
+
+    void EndMainLoop()
+    {
+        // Window handle no longer valid
+        native_ = {};
+
+        // DC already destroyed
+        hdc_ = {};
+
+        // Window already destroyed
+        hwnd_ = {};
+
+        // Unregister the window class
+        UnregisterClassA("pixelwindow_class", GetModuleHandle(nullptr));
+
+        // Free the brush object
+        DeleteObject(hbrush_);
+        hbrush_ = {};
+    }
+
+    HBRUSH hbrush_ = {};
+    WNDCLASSA wndclass_ = {};
+    HWND hwnd_ = {};
+    HDC hdc_ = {};
+
+    static constexpr auto keyMap_ = BuildKeyMap();
+
+    std::string windowTitle_;
+    Size windowSize_ = {};
+    NativeHandle native_ = {};
+
+    double updateInterval_ = 0.0; // 0ms: run as fast as possible
+
+    std::vector<Pixel> canvasData_ = {};
+    Size canvasSize_ = {};
+    BITMAPINFO canvasBitmapInfo_ = {};
+
+    Rect scaledCanvasRect_ = {}; // in window coordinates
+};
+
+/**
+ * PixelWindow abstract class
+ */
+class PixelWindow : public PixelWindowBase<PixelWindow>
+{
+public:
+    static constexpr Pixel COLOR_NONE    = Pixel(  0,   0,   0,   0);
+    static constexpr Pixel COLOR_BLACK   = Pixel(  0,   0,   0, 255);
+    static constexpr Pixel COLOR_GREY    = Pixel(128, 128, 128, 255);
+    static constexpr Pixel COLOR_WHITE   = Pixel(255, 255, 255, 255);
+    static constexpr Pixel COLOR_RED     = Pixel(255,   0,   0, 255);
+    static constexpr Pixel COLOR_GREEN   = Pixel(  0, 255,   0, 255);
+    static constexpr Pixel COLOR_BLUE    = Pixel(  0,   0, 255, 255);
+    static constexpr Pixel COLOR_CYAN    = Pixel(  0, 255, 255, 255);
+    static constexpr Pixel COLOR_MAGENTA = Pixel(255,   0, 255, 255);
+    static constexpr Pixel COLOR_YELLOW  = Pixel(255, 255,   0, 255);
+    static constexpr Pixel COLOR_ORANGE  = Pixel(255, 127,   0, 255);
+    static constexpr Pixel COLOR_PURPLE  = Pixel(127,   0, 255, 255);
+
+    /**
+     * Public PixelWindow destructor
+     */
+    ~PixelWindow() override = default;
+
+    /**
+     * Set the title string of the Window
+     *
+     * @param title Title text string to display
+     */
+    void SetWindowTitle(const std::string& title)
+    {
+        windowTitle_ = title;
+        WindowTitleUpdated(0.0, false);
+    }
+
+    /**
+     * Set OnUpdateFrame callback update interval
+     *
+     * This is the amount of time between frame updates.
+     * The OnUpdateFrame will be called as close to
+     * this value as possible; however, the actual timing
+     * can vary.
+     *
+     * @param ms The update interval in milliseconds
+     */
+    void SetUpdateInterval(double ms)
+    {
+        updateInterval_ = ms;
+    }
+
+    /**
+     * Create and displays the window on screen
+     *
+     * Calling this function will result in creating a
+     * window on screen and running its main event loop.
+     * The event loop is run on the calling thread.
+     *
+     * With this function, the window and canvas are
+     * created with the same dimensions.
+     *
+     * @param width Width of the window in pixels
+     * @param height Height of the window in pixels
+     * @param title Title of the window as a string
+     * @return true if successful, otherwise false
+     */
+    bool Show(unsigned width, unsigned height, const std::string& title = "")
+    {
+        windowSize_ = { width, height };
+
+        // Set the canvas size to the window
+        // size if it hasn't already been set
+        if ((canvasSize_.w == 0) && (canvasSize_.h == 0)) {
+            canvasSize_ = { width, height };
+        }
+
+        // Set the window title only if it
+        // hasn't already been set
+        if (windowTitle_.empty()) {
+            windowTitle_ = title;
+        }
+
+        // This will block the thread
+        return RunMainLoop();
+    }
+
+    /**
+     * Returns a reference to the window's native handle
+     *
+     * @return Reference to platform-specific handle
+     */
+    const NativeHandle& GetNative() const
+    {
+        return native_;
+    }
+
+    // Disable copying
+    PixelWindow(const PixelWindow&) = delete;
+    PixelWindow& operator=(const PixelWindow&) = delete;
+
+    // Disable moving
+    PixelWindow(PixelWindow&&) = delete;
+    PixelWindow& operator=(PixelWindow&&) = delete;
+
+protected:
+    /**
+     * Protected PixelWindow constructor
+     */
+    PixelWindow() : PixelWindowBase() {}
+
+    /**
+     * Sets the size of the window's canvas
+     *
+     * @param width Width of the canvas in pixels
+     * @param height Height of the canvas in pixels
+     */
+    void SetCanvasSize(unsigned width, unsigned height)
+    {
+        if ((width == canvasSize_.w) && (height == canvasSize_.h)) {
+            return;
+        }
+
+        canvasSize_ = { width, height };
+        CanvasSizeUpdated();
+    }
+
+    /**
+     * Gets the size of the window
+     *
+     * @return size in pixels
+     */
+    const Size& GetWindowSize() const
+    {
+        return windowSize_;
+    }
+
+    /**
+     * Gets the size of the window's canvas
+     *
+     * @return size in pixels
+     */
+    const Size& GetCanvasSize() const
+    {
+        return canvasSize_;
+    }
+
+    /**
+     * Converts window to canvas coordinates
+     *
+     * When calculating the canvas coordinate, the scale
+     * of the canvas is taken into account. Because the
+     * canvas is positioned central to window, this
+     * function can return a negative position if the
+     * input coordinate is above or to the left of the
+     * scaled canvas.
+     *
+     * @param x x-position in window coordinates
+     * @param y y-position in window coordinates
+     * @return pair containing canvas coordinates
+     */
+    std::pair<int, int> WindowPosToCanvas(int x, int y) const
+    {
+        // Destination rectangle of the scaled canvas in the window
+        const Rect& rect = scaledCanvasRect_;
+        if ((rect.size.w == 0) || (rect.size.h == 0)) {
+            return {};
+        }
+
+        double sx = canvasSize_.w / static_cast<double>(rect.size.w);
+        double sy = canvasSize_.h / static_cast<double>(rect.size.h);
+        double cx = std::floor((x - rect.origin.x) * sx);
+        double cy = std::floor((y - rect.origin.y) * sy);
+
+        return { static_cast<int>(cx), static_cast<int>(cy) };
+    }
+
+    /**
+     * Clears the window's canvas with a pixel value
+     *
+     * @param pixel Value used when clearing
+     */
+    void ClearCanvas(Pixel pixel = COLOR_NONE)
+    {
+        std::fill(canvasData_.begin(), canvasData_.end(), pixel);
+    }
+
+    /**
+     * Sets a pixel on the window's canvas
+     *
+     * Note that if a pixel's alpha value is 0, it will
+     * not be set.
+     *
+     * @param x x-position in canvas coordinates
+     * @param y y-position in canvas coordinates
+     * @param pixel Value to set
+     * @param force Ignore alpha check if true
+     */
+    void SetPixel(unsigned x, unsigned y, Pixel pixel, bool force = false)
+    {
+        // Don't set the pixel if transparent
+        if ((pixel.bgra.a == 0) && (!force)) {
+            return;
+        }
+
+        const unsigned offset = (y * canvasSize_.w) + x;
+
+        if (offset < canvasData_.size()) {
+            canvasData_[offset] = pixel;
+        }
+    }
+
+    /**
+     * Gets a pixel on the window's canvas
+     *
+     * @param x x-position in canvas coordinates
+     * @param y y-position in canvas coordinates
+     * @return Value of the requested pixel
+     */
+    Pixel GetPixel(unsigned x, unsigned y) const
+    {
+        const unsigned offset = (y * canvasSize_.w) + x;
+
+        Pixel pixel = {};
+        if (offset < canvasData_.size()) {
+            pixel = canvasData_[offset];
+        }
+
+        return pixel;
+    }
+
+private:
+    bool RunMainLoop()
+    {
+        if (!BeginMainLoop()) {
+            EndMainLoop();
+            return false;
+        }
+
+        // Initialise timers
+        using clock = std::chrono::high_resolution_clock;
+        auto updateTimer_t0 = clock::now();
+        auto fpsTimer_t0 = updateTimer_t0;
+
+        unsigned fpsFrameCount = 0;
+
+        while (true) {
+            // Calculate time since last frame update
+            auto updateTimer_t1 = clock::now();
+            std::chrono::duration<double, std::milli> updateTimer_dt =
+                updateTimer_t1 - updateTimer_t0;
+
+            if (!HandleMessages()) {
+                break;
+            }
+
+            if (updateTimer_dt.count() >= updateInterval_) {
+                // Update and optionally present
+                bool present = OnUpdateFrame(updateTimer_dt.count());
+                if (present) {
+                    const Rect& rect = scaledCanvasRect_;
+                    Present(rect);
+                }
+
+                // Reset the update rate timer
+                updateTimer_t0 = updateTimer_t1;
+                ++fpsFrameCount;
+
+                // Time since last fps (in seconds)
+                auto fpsTimer_t1 = updateTimer_t1;
+                std::chrono::duration<double> fpsTimer_dt =
+                    fpsTimer_t1 - fpsTimer_t0;
+
+                if (fpsTimer_dt.count() > 0.5) {
+                    double fps = fpsFrameCount / fpsTimer_dt.count();
+                    WindowTitleUpdated(fps, true);
+
+                    // Reset the FPS timer
+                    fpsTimer_t0 = fpsTimer_t1;
+                    fpsFrameCount = 0;
+                }
+            }
+        }
+
+        EndMainLoop();
+        return true;
+    }
+};
+
+} // namespace ap
+
+#endif // AP_PIXELWINDOW_H

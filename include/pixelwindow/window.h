@@ -1051,6 +1051,119 @@ protected:
         return pixel;
     }
 
+    /**
+     * Draws a rectangle on the window's canvas
+     *
+     * If the fill option is set, the rectangle will be
+     * filled with a solid colour. Otherwise it will have
+     * a 1 pixel (internal) border.
+     *
+     * The rectangle is clipped to the canvas size.
+     *
+     * Note that if a pixel's alpha value is 0, this
+     * function has no effect.
+     *
+     * @param x Top-left x-position in canvas coordinates
+     * @param y Top-left y-position in canvas coordinates
+     * @param w Width of the rectangle
+     * @param h Height of the rectangle
+     * @param pixel Value used for the rectangle's pixel data
+     * @param fill Set to true for a solid-fill
+     */
+    void DrawRect(unsigned x, unsigned y, unsigned w, unsigned h, Pixel pixel, bool fill = false)
+    {
+        // Don't set the pixel if transparent
+        if (pixel.bgra.a == 0) {
+            return;
+        }
+
+        // Clip to canvas size
+        const unsigned xEnd = std::min(x + w, canvasSize_.w);
+        const unsigned yEnd = std::min(y + h, canvasSize_.h);
+
+        if ((x >= xEnd) || (y >= yEnd)) {
+            return;
+        }
+
+        // Update w and h from clipped size
+        w = xEnd - x;
+        h = yEnd - y;
+
+        // Start at top-left of rectangle
+        unsigned offset = (y * canvasSize_.w) + x;
+
+        // A border only makes sense if there is
+        // at least a 3 pixel width and height
+        if (!fill && w > 2 && h > 2) {
+            std::fill_n(&canvasData_[offset], w, pixel);
+            offset += canvasSize_.w;
+            for (unsigned i = 1; i < (h - 1); ++i) {
+                canvasData_[offset] = pixel;
+                canvasData_[offset + w - 1] = pixel;
+                offset += canvasSize_.w;
+            }
+            std::fill_n(&canvasData_[offset], w, pixel);
+        } else {
+            for (unsigned i = 0; i < h; ++i) {
+                std::fill_n(&canvasData_[offset], w, pixel);
+                offset += canvasSize_.w;
+            }
+        }
+    }
+
+    /**
+     * Draws a rectangle on the window's canvas
+     *
+     * The rectangle is filled with the given array of
+     * pixel data. It is filled one row at a time, from
+     * top to bottom of the rectangle. If the array of
+     * data is incomplete, the remaining pixels of the
+     * rectangle will be filled with COLOR_NONE.
+     *
+     * The rectangle is clipped to the canvas size.
+     *
+     * Note that if a pixel's alpha value is 0, it will
+     * not be set.
+     *
+     * @param x Top-left x-coordinate of the rectangle
+     * @param y Top-left y-coordinate of the rectangle
+     * @param w Width of the rectangle
+     * @param h Height of the rectangle
+     * @param pixels Values used for the rectangle's pixels
+     */
+    void DrawRect(unsigned x, unsigned y, unsigned w, unsigned h, const std::vector<Pixel>& pixels)
+    {
+        // Clip to canvas size
+        const unsigned xEnd = std::min(x + w, canvasSize_.w);
+        const unsigned yEnd = std::min(y + h, canvasSize_.h);
+
+        if ((x >= xEnd) || (y >= yEnd)) {
+            return;
+        }
+
+        // Update w and h from clipped size
+        w = xEnd - x;
+        h = yEnd - y;
+
+        // Start at top-left of rectangle
+        unsigned offset = (y * canvasSize_.w) + x;
+
+        size_t p = 0;
+
+        for (unsigned j = 0; j < h; ++j) {
+            for (unsigned i = 0; i < w; ++i) {
+                const auto pixel = (p < pixels.size()) ? pixels[p] : COLOR_NONE;
+                ++p;
+
+                // Don't set the pixel if transparent
+                if (pixel.bgra.a != 0) {
+                    canvasData_[offset + i] = pixel;
+                }
+            }
+            offset += canvasSize_.w;
+        }
+    }
+
 private:
     bool RunMainLoop()
     {

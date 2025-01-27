@@ -74,7 +74,7 @@ constexpr Pixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
 Please note that the PixelWindow does not perform alpha-blending. Instead, the alpha component of a Pixel is treated as a boolean write mask where if its value is non-zero, the canvas will be updated with the entire 32-bit value. If, however, the alpha component is zero, the canvas will not be updated. This mask does not apply to the `ClearCanvas` function, where the canvas is set to the Pixel's value (regardless of the alpha value).
 
-In addition to the `OnCreate`, `OnDestroy`, and `OnUpdateFrame` interfaces, the `ap::PixelWindow` class provides the following protected callback methods that can be overridden:
+For a working example, which draws a square in the centre of the window, please see the "basic" demo project in the "demos" directory. In addition to the `OnCreate`, `OnDestroy`, and `OnUpdateFrame` interfaces, the `ap::PixelWindow` class provides the following protected callback methods that can be overridden:
 
 | Callback Name | Description |
 | --- | --- |
@@ -108,6 +108,7 @@ classDiagram
     class `ap::PixelWindow` {
         +Show()
         #SetPixel()
+        #DrawRect()
     }
     }
     class Application {

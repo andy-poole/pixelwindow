@@ -18,6 +18,8 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif // WIN32_LEAN_AND_MEAN
@@ -29,6 +31,13 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shellapi.h>
+
+#elif defined(__linux__)
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+
+#endif
 
 namespace ap {
 
@@ -204,10 +213,10 @@ class IPixelWindow
 {
 public:
     /**
-     * Version: v0.1.0
+     * Version: v0.2.0
      * Format:  major=[15..12], minor=[11..8], patch[7..0]
      */
-    static constexpr uint16_t VERSION = 0x0100;
+    static constexpr uint16_t VERSION = 0x0200;
 
     /**
      * Public IPixelWindow destructor
@@ -258,6 +267,8 @@ protected:
      *
      * When a user drags and drops a file onto the window,
      * this function will be called with the path.
+     *
+     * Note: This is Windows-only
      *
      * @param path Path of the dropped file
      */
@@ -401,6 +412,8 @@ protected:
         return rect;
     }
 };
+
+#if defined(_WIN32)
 
 /**
  * PixelWindowBase abstract class
@@ -821,6 +834,465 @@ private:
 
     Rect scaledCanvasRect_ = {}; // in window coordinates
 };
+
+#elif defined(__linux__)
+
+/**
+ * PixelWindowBase abstract class
+ *
+ * The PixelWindowBase class provides the base, and the
+ * implementation-specific functionality for the
+ * PixelWindow class.
+ *
+ * This base class is implemented specifically to use the
+ * XLib API for the Linux operating system
+ */
+template <typename Derived>
+class PixelWindowBase : public IPixelWindow, private PixelWindowBase0
+{
+    // Allow the Derived class to access private data of
+    // this class to prevent further derived classes from
+    // accessing unnecessary private state.
+    // Making internal state 'protected' would allow all
+    // subclasses access to the implementation details.
+    friend Derived;
+
+public:
+    /**
+     * Xlib-specific native window handle.
+     */
+    struct NativeHandle {
+        Display* display;
+        Window window;
+    };
+
+    /**
+     * Public PixelWindowBase destructor
+     */
+    ~PixelWindowBase() override = default;
+
+protected:
+    /**
+     * Protected PixelWindowBase constructor
+     */
+    PixelWindowBase() = default;
+
+private:
+    static constexpr std::array<Key,256> BuildCtrlKeyMap()
+    {
+        // Compile-time construction of
+        // the keyboard key map consisting
+        // of 16-bit control key symbols that
+        // all start with 0xff.
+        // We only store the lower byte
+        std::array<Key, 256> map = {};
+        map[XK_Return & 0xff] = Key::ENTER;
+        map[XK_Escape & 0xff] = Key::ESC;
+        map[XK_Left & 0xff] = Key::LEFT;
+        map[XK_Up & 0xff] = Key::UP;
+        map[XK_Right & 0xff] = Key::RIGHT;
+        map[XK_Down & 0xff] = Key::DOWN;
+        map[XK_KP_Enter & 0xff] = Key::ENTER;
+        map[XK_KP_Left & 0xff] = Key::LEFT;
+        map[XK_KP_Up & 0xff] = Key::UP;
+        map[XK_KP_Right & 0xff] = Key::RIGHT;
+        map[XK_KP_Down & 0xff] = Key::DOWN;
+        return map;
+    }
+
+    static constexpr std::array<Key,256> BuildKeyMap()
+    {
+        // Compile-time construction of
+        // the keyboard key map consisting
+        // of 16-bit key symbols that
+        // all start with 0x00.
+        // We only store the lower byte
+        std::array<Key, 256> map = {};
+        map[XK_space] = Key::SPACE;
+        map[XK_0] = Key::NUM0;
+        map[XK_1] = Key::NUM1;
+        map[XK_2] = Key::NUM2;
+        map[XK_3] = Key::NUM3;
+        map[XK_4] = Key::NUM4;
+        map[XK_5] = Key::NUM5;
+        map[XK_6] = Key::NUM6;
+        map[XK_7] = Key::NUM7;
+        map[XK_8] = Key::NUM8;
+        map[XK_9] = Key::NUM9;
+        map[XK_a] = Key::A;
+        map[XK_b] = Key::B;
+        map[XK_c] = Key::C;
+        map[XK_d] = Key::D;
+        map[XK_e] = Key::E;
+        map[XK_f] = Key::F;
+        map[XK_g] = Key::G;
+        map[XK_h] = Key::H;
+        map[XK_i] = Key::I;
+        map[XK_j] = Key::J;
+        map[XK_k] = Key::K;
+        map[XK_l] = Key::L;
+        map[XK_m] = Key::M;
+        map[XK_n] = Key::N;
+        map[XK_o] = Key::O;
+        map[XK_p] = Key::P;
+        map[XK_q] = Key::Q;
+        map[XK_r] = Key::R;
+        map[XK_s] = Key::S;
+        map[XK_t] = Key::T;
+        map[XK_u] = Key::U;
+        map[XK_v] = Key::V;
+        map[XK_w] = Key::W;
+        map[XK_x] = Key::X;
+        map[XK_y] = Key::Y;
+        map[XK_z] = Key::Z;
+        return map;
+    }
+
+    static constexpr std::array<Mouse, 8> BuildMouseMap()
+    {
+        // Compile-time construction of
+        // the mouse button map consisting
+        // of X11/Xlib Button codes.
+        std::array<Mouse, 8> map = {};
+        map[Button1] = Mouse::LEFT;
+        map[Button2] = Mouse::MIDDLE;
+        map[Button3] = Mouse::RIGHT;
+        return map;
+    }
+
+    void WindowTitleUpdated(double fps, bool showFps)
+    {
+        if (display_ && window_ != 0) {
+            char str[256] = {};
+            if (showFps) {
+                snprintf(str, sizeof(str), "%s (fps: %.1f)", windowTitle_.c_str(), fps);
+            } else {
+                snprintf(str, sizeof(str), "%s", windowTitle_.c_str());
+            }
+            XStoreName(display_, window_, str);
+        }
+    }
+
+    void WindowSizeUpdated()
+    {
+        if (!display_ || window_ == 0) {
+            return;
+        }
+
+        // Clear areas of the window not covered by the canvas
+        XClearWindow(display_, window_);
+
+        // Cache for blitting the canvas to window
+        scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
+    }
+
+    void CanvasSizeUpdated()
+    {
+        auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
+        canvasData_.resize(pixels);
+
+        // Cache for blitting the canvas to window
+        scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
+    }
+
+    bool BeginMainLoop()
+    {
+        display_ = XOpenDisplay(nullptr);
+        if (!display_) {
+            return false;
+        }
+
+        screen_ = DefaultScreen(display_);
+        visual_ = XDefaultVisual(display_, screen_);
+
+        const unsigned black = BlackPixel(display_, screen_);
+
+        XSetWindowAttributes attributes = {};
+        attributes.background_pixel = black;
+        attributes.border_pixel = black;
+        attributes.event_mask =
+            KeyPressMask | KeyReleaseMask |
+            ButtonPressMask | ButtonReleaseMask |
+            FocusChangeMask |
+            StructureNotifyMask;
+
+        window_ = XCreateWindow(
+            display_,
+            DefaultRootWindow(display_),
+            0, // x
+            0, // y
+            windowSize_.w,
+            windowSize_.h,
+            0, // border size
+            DefaultDepth(display_, screen_), // depth
+            InputOutput,
+            visual_,
+            CWBackPixel | CWBorderPixel | CWEventMask,
+            &attributes
+        );
+
+        if (window_ == 0) {
+            return false;
+        }
+
+        // Register a client event to respond
+        // to when the window is closed
+        WM_DELETE_WINDOW = XInternAtom(display_, "WM_DELETE_WINDOW", 0);
+        XSetWMProtocols(display_, window_, &WM_DELETE_WINDOW, 1);
+
+        WindowSizeUpdated();
+        CanvasSizeUpdated();
+
+        native_= {};
+        native_.display = display_;
+        native_.window = window_;
+
+        // Window created: call callback
+        OnCreate(windowSize_.w, windowSize_.h);
+
+        XStoreName(display_, window_, windowTitle_.c_str());
+
+        XMapWindow(display_, window_);
+        XFlush(display_);
+
+        return true;
+    }
+
+    bool HandleMessages()
+    {
+        bool quit = false;
+
+        while (XPending(display_)) {
+            XEvent event;
+            XNextEvent(display_, &event);
+
+            // Client Events
+            if (event.type == ClientMessage) {
+                Atom protocol = event.xclient.data.l[0];
+                if(protocol == WM_DELETE_WINDOW) {
+                    quit = true;
+                    break;
+                }
+                continue;
+            }
+
+            // Input Events
+            switch (event.type) {
+            case ConfigureNotify: {
+                const auto w = static_cast<unsigned>(event.xconfigure.width);
+                const auto h = static_cast<unsigned>(event.xconfigure.height);
+                if (w != windowSize_.w || h != windowSize_.h) {
+                    windowSize_.w = w;
+                    windowSize_.h = h;
+                    WindowSizeUpdated();
+                    OnResize(windowSize_.w, windowSize_.h);
+                }
+                break;
+            }
+            case FocusIn: {
+                OnFocusChanged(true);
+                break;
+            }
+            case FocusOut: {
+                OnFocusChanged(false);
+                break;
+            }
+            case KeyPress: {
+                const KeySym sym = XLookupKeysym(&event.xkey, 0);
+                const size_t idx = sym & 0xff;
+                if ((sym & 0xff00) == 0xff00) {
+                    OnKeyPress((idx < ctrlkeyMap_.size()) ? ctrlkeyMap_[idx] : Key::NONE, true);
+                } else {
+                    OnKeyPress((idx < keyMap_.size()) ? keyMap_[idx] : Key::NONE, true);
+                }
+                break;
+            }
+            case KeyRelease: {
+                // X11's auto-repeat always sends a KeyRelease
+                // after a KeyPress event:
+                //    KeyPress
+                //    KeyRelease
+                //    KeyPress
+                //    KeyRelease
+                // To avoid the extra KeyRelease we ignore
+                // this event when we detect auto-repeat
+                if (XEventsQueued(display_, QueuedAfterReading)) {
+                    XEvent next;
+                    XPeekEvent(display_, &next);
+
+                    // Detect auto-repeat by checking the
+                    // timestamp of the next KeyPress event
+                    if (next.type == KeyPress &&
+                        next.xkey.keycode == event.xkey.keycode &&
+                        next.xkey.time == event.xkey.time) {
+                        // Don't process this event
+                        break;
+                    }
+                }
+                const KeySym sym = XLookupKeysym(&event.xkey, 0);
+                const size_t idx = sym & 0xff;
+                if ((sym & 0xff00) == 0xff00) {
+                    OnKeyPress((idx < ctrlkeyMap_.size()) ? ctrlkeyMap_[idx] : Key::NONE, false);
+                } else {
+                    OnKeyPress((idx < keyMap_.size()) ? keyMap_[idx] : Key::NONE, false);
+                }
+                break;
+            }
+            case ButtonPress: {
+                const unsigned idx = event.xbutton.button;
+                const int x = event.xbutton.x;
+                const int y = event.xbutton.y;
+                OnMouseClick(idx < mouseMap_.size() ? mouseMap_[idx] : Mouse::NONE, x, y, true);
+                break;
+            }
+            case ButtonRelease: {
+                const unsigned idx = event.xbutton.button;
+                const int x = event.xbutton.x;
+                const int y = event.xbutton.y;
+                OnMouseClick(idx < mouseMap_.size() ? mouseMap_[idx] : Mouse::NONE, x, y, false);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        return !quit;
+    }
+
+    /**
+     * Scales image data using nearest neighbour filtering
+     * TODO: Replace with XRender solution
+     */
+    static void ScaleNearest(const std::vector<Pixel>& srcData, const Size& srcSize,
+                             std::vector<Pixel>& dstData, const Size& dstSize)
+    {
+        for (unsigned dy = 0; dy < dstSize.h; ++dy) {
+            unsigned sy = (dy * srcSize.h) / dstSize.h;
+            for (unsigned dx = 0; dx < dstSize.w; ++dx) {
+                unsigned sx = (dx * srcSize.w) / dstSize.w;
+                dstData[(dy * dstSize.w) + dx] = srcData[(sy * srcSize.w) + sx];
+            }
+        }
+    }
+
+    void WaitForVSync()
+    {
+        // TODO
+    }
+
+    void Present(const Rect& dstRect)
+    {
+        if (!display_ || window_ == 0 || !dstRect.size.w || !dstRect.size.h) {
+            return;
+        }
+
+        // If the destination (presented) rectangle is
+        // different to the scaled canvas, we need to update
+        // the scaled canvas's data buffer and XImage
+        if (dstRect.size != scaledCanvasSize_) {
+            scaledCanvasSize_ = dstRect.size;
+
+            auto pixels = size_t(scaledCanvasSize_.w) * size_t(scaledCanvasSize_.h);
+            scaledCanvasData_.resize(pixels);
+
+            if (scaledCanvasImageInfo_) {
+                // The XImage doesn't own the data
+                scaledCanvasImageInfo_->data = nullptr;
+                XDestroyImage(scaledCanvasImageInfo_);
+            }
+
+            scaledCanvasImageInfo_ = XCreateImage(
+                display_,
+                visual_,
+                DefaultDepth(display_, screen_),
+                ZPixmap, // uses 4 bytes per pixel
+                0,
+                reinterpret_cast<char*>(scaledCanvasData_.data()),
+                scaledCanvasSize_.w,
+                scaledCanvasSize_.h,
+                32, 0
+            );
+        }
+
+        // Scale the canvas using "nearest" filtering
+        ScaleNearest(canvasData_, canvasSize_, scaledCanvasData_, scaledCanvasSize_);
+
+        XPutImage(
+            display_,
+            window_,
+            DefaultGC(display_, screen_),
+            scaledCanvasImageInfo_,
+            0, 0,
+            dstRect.origin.x,
+            dstRect.origin.y,
+            dstRect.size.w,
+            dstRect.size.h
+        );
+        XFlush(display_);
+
+        // Block until the compositor has finished
+        // compositing this frame.
+        WaitForVSync();
+    }
+
+    void EndMainLoop()
+    {
+        // Hide the window before OnDestroy
+        XUnmapWindow(display_, window_);
+        XFlush(display_);
+
+        // Window being destroyed: call callback
+        OnDestroy();
+
+        // Free only if canvas created
+        if (scaledCanvasImageInfo_) {
+            // The XImage doesn't own the data
+            scaledCanvasImageInfo_->data = nullptr;
+            XDestroyImage(scaledCanvasImageInfo_);
+
+            scaledCanvasImageInfo_ = nullptr;
+        }
+
+        // Window handle no longer valid
+        native_ = {};
+
+        // Now destroy the window
+        XDestroyWindow(display_, window_);
+        window_ = {};
+
+        // Now close the display connection
+        XCloseDisplay(display_);
+        display_ = {};
+    }
+
+    Display* display_ = nullptr;
+    int screen_ = 0;
+    Visual* visual_ = nullptr;
+    Window window_ = 0;
+    Atom WM_DELETE_WINDOW = {};
+
+    static constexpr auto ctrlkeyMap_ = BuildCtrlKeyMap();
+    static constexpr auto keyMap_ = BuildKeyMap();
+    static constexpr auto mouseMap_ = BuildMouseMap();
+
+    std::string windowTitle_;
+    Size windowSize_ = {};
+    NativeHandle native_ = {};
+
+    double updateInterval_ = 0.0; // 0ms: run as fast as possible
+
+    std::vector<Pixel> canvasData_ = {};
+    Size canvasSize_ = {};
+
+    std::vector<Pixel> scaledCanvasData_ = {};
+    Size scaledCanvasSize_ = {};
+    XImage* scaledCanvasImageInfo_ = nullptr;
+
+    Rect scaledCanvasRect_ = {}; // in window coordinates
+};
+
+#endif
 
 /**
  * PixelWindow abstract class

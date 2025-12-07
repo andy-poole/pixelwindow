@@ -23,3 +23,7 @@ set(TARGET_SRCS ${SRC_DIR}/main.cpp)
 add_executable(${PROJECT_NAME})
 target_include_directories(${PROJECT_NAME} PRIVATE ${TARGET_INC_DIRS})
 target_sources(${PROJECT_NAME} PRIVATE ${TARGET_SRCS})
+
+if(UNIX)
+target_link_libraries(${PROJECT_NAME} PRIVATE X11)
+endif()

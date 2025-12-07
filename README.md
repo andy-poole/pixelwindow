@@ -1,7 +1,7 @@
 # PixelWindow Project
 
 ## Introduction
-A PixelWindow is a simple, callback-based abstraction for a window on the Windows operating system. The abstraction enables the simple creation of a window simply by extending the PixelWindow class, hiding platform-specific details and complexities. The PixelWindow abstraction is deliberately designed to be a simple (CPU-based) way of creating a window and is not intended to be a UI framework.
+A PixelWindow is a simple, callback-based abstraction for a window on the Windows and Linux operating systems (using Xlib). The abstraction enables the simple creation of a window simply by extending the PixelWindow class, hiding platform-specific details and complexities. The PixelWindow abstraction is deliberately designed to be a simple (CPU-based) way of creating a window and is not intended to be a UI framework.
 
 As well as creating a window, the PixelWindow creates an internal canvas, which can be updated using its pixel drawing methods. The canvas size can be set independently to the window and then scaled when presenting.
 
@@ -115,13 +115,14 @@ classDiagram
         #OnCreate()
         #OnUpdateFrame()
     }
+    note for `ap::PixelWindowBase` "This class is OS-specific (decided at compile-time)"
     note for Application "This class is implemented by the user"
 
     `ap::IPixelWindow` <|.. `ap::PixelWindowBase` : implements
     `ap::PixelWindowBase` <|-- `ap::PixelWindow`
     `ap::PixelWindow` <|-- Application : concrete implementation of
 ```
-The `Application` class is implemented by the user of the PixelWindow module.
+In the above diagram, note that the `ap::PixelWindowBase` is an OS-specific implementation. This is decided at compile time: if `_WIN32` is defined, a Windows implementation is used. If `__linux__` is defined, a Linux/Xlib implementation is used. The `Application` class is implemented by the user of the PixelWindow module.
 
 ## Building the Demos
 The demo applications use CMake to generate their project build files. In order to generate a project, the following command can be used:
@@ -138,7 +139,12 @@ For more information on the build requirements, please see the CMakeLists.txt fi
 
 ## Releases and Issues
 Releases:
+* `v0.2` - Added basic support for Linux (Xlib)
 * `v0.1` - Initial release supporting Windows and the basic demo project
+
+Known issues and limitations:
+* Linux/Xlib implementation uses a (slow) CPU-based scaler
+* Linux/Xlib implementation does not support the `OnDropFile` callback
 
 ## Final Remarks
 The PixelWindow project is deliberately simple - it was originally created for the sonicx Mega Drive emulator as a way of presenting to the screen. Because of this, the implementation is limited to the minimum functionality required for the sonicx emulator. The code is released under an MIT licence, so do what you want with it :D

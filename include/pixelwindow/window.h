@@ -521,7 +521,7 @@ private:
         }
     }
 
-    void WindowSizeUpdated()
+    void ClearWindow()
     {
         if (!hwnd_ || !hdc_) {
             return;
@@ -535,6 +535,12 @@ private:
         };
 
         FillRect(hdc_, &rect, hbrush_);
+    }
+
+    void WindowSizeUpdated()
+    {
+        // Clear areas of the window not covered by the canvas
+        ClearWindow();
 
         // Cache for blitting the canvas to window
         scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
@@ -542,6 +548,9 @@ private:
 
     void CanvasSizeUpdated()
     {
+        // Clear areas of the window not covered by the canvas
+        ClearWindow();
+
         auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
         canvasData_.resize(pixels);
 
@@ -973,14 +982,19 @@ private:
         }
     }
 
-    void WindowSizeUpdated()
+    void ClearWindow()
     {
         if (!display_ || window_ == 0) {
             return;
         }
 
-        // Clear areas of the window not covered by the canvas
         XClearWindow(display_, window_);
+    }
+
+    void WindowSizeUpdated()
+    {
+        // Clear areas of the window not covered by the canvas
+        ClearWindow();
 
         // Cache for blitting the canvas to window
         scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
@@ -988,6 +1002,9 @@ private:
 
     void CanvasSizeUpdated()
     {
+        // Clear areas of the window not covered by the canvas
+        ClearWindow();
+
         auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
         canvasData_.resize(pixels);
 

@@ -15,10 +15,11 @@ The PixelWindow class is an abstract class which must be extended in order to be
 class Application : public ap::PixelWindow
 {
 protected:
-    void OnCreate(unsigned width, unsigned height) override
+    bool OnCreate(unsigned width, unsigned height) override
     {
         // Creation logic
         // Called just after the window was created
+        return true;
     }
 
     void OnDestroy() override
@@ -147,4 +148,4 @@ Known issues and limitations:
 * Linux/Xlib implementation does not support the `OnDropFile` callback
 
 ## Final Remarks
-The PixelWindow project is deliberately simple - it was originally created for the sonicx Mega Drive emulator as a way of presenting to the screen. Because of this, the implementation is limited to the minimum functionality required for the sonicx emulator. The code is released under an MIT licence, so do what you want with it :D
+The PixelWindow project is deliberately simple - it was originally created for my Mega Drive emulator as a way of presenting to the screen. Because of this, the implementation is limited to the minimum functionality required for the emulator. The code is released under an MIT licence, so do what you want with it :D

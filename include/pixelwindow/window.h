@@ -256,8 +256,9 @@ protected:
      *
      * @param width Width of the window in pixels
      * @param height Height of the window in pixels
+     * @return true if successful, otherwise false
      */
-    virtual void OnCreate(unsigned width, unsigned height) { (void)width; (void)height; }
+    virtual bool OnCreate(unsigned width, unsigned height) { (void)width; (void)height; return true; }
 
     /**
      * Callback called on window destroy
@@ -596,10 +597,6 @@ private:
             SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
             return 0;
         }
-        case WM_CLOSE: {
-            DestroyWindow(hwnd); // sends WM_DESTROY
-            return 0;
-        }
         case WM_DESTROY: {
             // Window being destroyed: call callback
             window->OnDestroy();
@@ -765,7 +762,10 @@ private:
         native_.hwnd = hwnd_;
 
         // Window created: call callback
-        OnCreate(windowSize_.w, windowSize_.h);
+        if (!OnCreate(windowSize_.w, windowSize_.h)) {
+            DestroyWindow(hwnd_);
+            return false;
+        }
 
         ShowWindow(hwnd_, SW_SHOWNORMAL);
 
@@ -1074,6 +1074,8 @@ private:
             return false;
         }
 
+        XStoreName(display_, window_, windowTitle_.c_str());
+
         // Register a client event to respond
         // to when the window is closed
         WM_DELETE_WINDOW = XInternAtom(display_, "WM_DELETE_WINDOW", 0);
@@ -1087,9 +1089,9 @@ private:
         native_.window = window_;
 
         // Window created: call callback
-        OnCreate(windowSize_.w, windowSize_.h);
-
-        XStoreName(display_, window_, windowTitle_.c_str());
+        if (!OnCreate(windowSize_.w, windowSize_.h)) {
+            return false;
+        }
 
         XMapWindow(display_, window_);
         XFlush(display_);
@@ -1277,9 +1279,11 @@ private:
 
     void EndMainLoop()
     {
-        // Hide the window before OnDestroy
-        XUnmapWindow(display_, window_);
-        XFlush(display_);
+        if (display_ && window_ != 0) {
+            // Hide the window before OnDestroy
+            XUnmapWindow(display_, window_);
+            XFlush(display_);
+        }
 
         // Window being destroyed: call callback
         OnDestroy();
@@ -1297,12 +1301,16 @@ private:
         native_ = {};
 
         // Now destroy the window
-        XDestroyWindow(display_, window_);
-        window_ = {};
+        if (display_ && window_ != 0) {
+            XDestroyWindow(display_, window_);
+            window_ = 0;
+        }
 
         // Now close the display connection
-        XCloseDisplay(display_);
-        display_ = {};
+        if (display_) {
+            XCloseDisplay(display_);
+            display_ = {};
+        }
     }
 
     Display* display_ = nullptr;

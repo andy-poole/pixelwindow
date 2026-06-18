@@ -11,19 +11,31 @@
 #ifndef AP_PIXELWINDOW_H
 #define AP_PIXELWINDOW_H
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <thread>
 #include <string>
+#include <utility>
 #include <vector>
 
 #if defined(_WIN32)
 
+// Remove unnecessary functionality
+// from the windows.h header file
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif // WIN32_LEAN_AND_MEAN
 
+// Enable strict Windows type checks
+#ifndef STRICT
+#define STRICT
+#endif // STRICT
+
+// Removes the awful min/max macros
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif // NOMINMAX
@@ -31,6 +43,9 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shellapi.h>
+#include <timeapi.h>
+
+#pragma comment(lib, "winmm.lib")
 
 #elif defined(__linux__)
 
@@ -690,6 +705,10 @@ private:
 
     bool BeginMainLoop()
     {
+        // Set the resolution of the Windows
+        // timer to 1ms
+        timeBeginPeriod(1);
+
         // Must be destroyed with DeleteObject
         hbrush_ = CreateSolidBrush(RGB(0, 0, 0));
 
@@ -822,6 +841,9 @@ private:
         // Free the brush object
         DeleteObject(hbrush_);
         hbrush_ = {};
+
+        // Restore timer resolution
+        timeEndPeriod(1);
     }
 
     HBRUSH hbrush_ = {};
@@ -835,7 +857,7 @@ private:
     Size windowSize_ = {};
     NativeHandle native_ = {};
 
-    double updateInterval_ = 0.0; // 0ms: run as fast as possible
+    std::chrono::duration<double> updateInterval_ = {}; // 0: run as fast as possible
 
     std::vector<Pixel> canvasData_ = {};
     Size canvasSize_ = {};
@@ -1297,7 +1319,7 @@ private:
     Size windowSize_ = {};
     NativeHandle native_ = {};
 
-    double updateInterval_ = 0.0; // 0ms: run as fast as possible
+    std::chrono::duration<double> updateInterval_ = {}; // 0: run as fast as possible
 
     std::vector<Pixel> canvasData_ = {};
     Size canvasSize_ = {};
@@ -1358,7 +1380,7 @@ public:
      */
     void SetUpdateInterval(double ms)
     {
-        updateInterval_ = ms;
+        updateInterval_ = std::chrono::duration<double>(ms / 1000.0);
     }
 
     /**
@@ -1661,47 +1683,64 @@ private:
             return false;
         }
 
-        // Initialise timers
-        using clock = std::chrono::high_resolution_clock;
-        auto updateTimer_t0 = clock::now();
-        auto fpsTimer_t0 = updateTimer_t0;
+        using clock = std::chrono::steady_clock;
 
+        // The time we want to next call OnUpdateFrame
+        auto targetUpdateTime = clock::now();
+
+        auto fpsTimer = targetUpdateTime;
         unsigned fpsFrameCount = 0;
 
         while (true) {
-            // Calculate time since last frame update
-            auto updateTimer_t1 = clock::now();
-            std::chrono::duration<double, std::milli> updateTimer_dt =
-                updateTimer_t1 - updateTimer_t0;
-
+            // Handle window events for this iteration
             if (!HandleMessages()) {
                 break;
             }
 
-            if (updateTimer_dt.count() >= updateInterval_) {
+            auto now = clock::now();
+
+            if (now >= targetUpdateTime) {
+                // Calculate time since last frame update.
+                // The difference between now and target
+                // update time gives the drift from the
+                // desired update time. Adding the
+                // fixed update interval gives the time to
+                // when the last OnFrameUpdate was last called.
+                auto drift = now - targetUpdateTime;
+                std::chrono::duration<double> update_dt = drift + updateInterval_;
+
                 // Update and optionally present
-                bool present = OnUpdateFrame(updateTimer_dt.count());
+                bool present = OnUpdateFrame(update_dt.count() * 1000.0);
                 if (present) {
-                    const Rect& rect = scaledCanvasRect_;
-                    Present(rect);
+                    Present(scaledCanvasRect_);
                 }
 
-                // Reset the update rate timer
-                updateTimer_t0 = updateTimer_t1;
+                // Update the time to next call OnUpdateFrame
+                targetUpdateTime += std::chrono::duration_cast<clock::duration>(updateInterval_);
+
+                // If we are running slowly due to a heavy
+                // update, we need to reset the timer.
+                // Reset timer if the drift is larger than the
+                // fixed update interval.
+                if (drift > updateInterval_) {
+                    targetUpdateTime = now;
+                }
+
+                // Update the FPS counter and window title
                 ++fpsFrameCount;
-
-                // Time since last fps (in seconds)
-                auto fpsTimer_t1 = updateTimer_t1;
-                std::chrono::duration<double> fpsTimer_dt =
-                    fpsTimer_t1 - fpsTimer_t0;
-
-                if (fpsTimer_dt.count() > 0.5) {
-                    double fps = fpsFrameCount / fpsTimer_dt.count();
+                auto fps_dt = std::chrono::duration<double>(now - fpsTimer);
+                if (fps_dt.count() >= 0.5) {
+                    double fps = fpsFrameCount / fps_dt.count();
                     WindowTitleUpdated(fps, true);
-
-                    // Reset the FPS timer
-                    fpsTimer_t0 = fpsTimer_t1;
+                    fpsTimer = clock::now();
                     fpsFrameCount = 0;
+                }
+            } else {
+                // If there is more than 1ms to the target update
+                // time, we can sleep for a bit to save CPU
+                auto sleepUntil = targetUpdateTime - std::chrono::milliseconds(1);
+                if (now < sleepUntil) {
+                    std::this_thread::sleep_until(sleepUntil);
                 }
             }
         }

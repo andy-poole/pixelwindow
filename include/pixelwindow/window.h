@@ -281,8 +281,8 @@ protected:
     /**
      * Callback called when a file is dropped
      *
-     * When a user drags and drops a file onto the window,
-     * this function will be called with the path.
+     * When a user drags and drops a single file onto the
+     * window, this function will be called with the path.
      *
      * Note: This is Windows-only
      *
@@ -377,17 +377,16 @@ protected:
  */
 class PixelWindowBase0
 {
-public:
-    /**
-     * Public PixelWindowBase0 destructor
-     */
-    ~PixelWindowBase0() = default;
-
 protected:
     /**
      * Protected PixelWindowBase0 constructor
      */
     PixelWindowBase0() = default;
+
+    /**
+     * Protected PixelWindowBase0 destructor
+     */
+    ~PixelWindowBase0() = default;
 
     /**
      * Returns the size and position for where to blit a
@@ -1212,9 +1211,11 @@ private:
     {
         for (unsigned dy = 0; dy < dstSize.h; ++dy) {
             unsigned sy = (dy * srcSize.h) / dstSize.h;
+            unsigned syOffset = (sy * srcSize.w);
+            unsigned dyOffset = (dy * dstSize.w);
             for (unsigned dx = 0; dx < dstSize.w; ++dx) {
                 unsigned sx = (dx * srcSize.w) / dstSize.w;
-                dstData[(dy * dstSize.w) + dx] = srcData[(sy * srcSize.w) + sx];
+                dstData[dyOffset + dx] = srcData[syOffset + sx];
             }
         }
     }
@@ -1531,6 +1532,9 @@ protected:
     /**
      * Sets a pixel on the window's canvas
      *
+     * There is no bounds-checking on the position. It
+     * is assumed that the user passes a valid point.
+     *
      * Note that if a pixel's alpha value is 0, it will
      * not be set.
      *
@@ -1555,6 +1559,9 @@ protected:
 
     /**
      * Gets a pixel on the window's canvas
+     *
+     * There is no bounds-checking on the position. It
+     * is assumed that the user passes a valid point.
      *
      * @param x x-position in canvas coordinates
      * @param y y-position in canvas coordinates

@@ -979,15 +979,17 @@ private:
         return map;
     }
 
-    static constexpr std::array<Mouse, 8> BuildMouseMap()
+    static constexpr std::array<Mouse, 16> BuildMouseMap()
     {
         // Compile-time construction of
         // the mouse button map consisting
         // of X11/Xlib Button codes.
-        std::array<Mouse, 8> map = {};
-        map[Button1] = Mouse::LEFT;
-        map[Button2] = Mouse::MIDDLE;
-        map[Button3] = Mouse::RIGHT;
+        std::array<Mouse, 16> map = {};
+        map[1] = Mouse::LEFT;
+        map[2] = Mouse::MIDDLE;
+        map[3] = Mouse::RIGHT;
+        map[8] = Mouse::X1;
+        map[9] = Mouse::X2;
         return map;
     }
 

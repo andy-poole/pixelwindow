@@ -457,6 +457,7 @@ public:
     struct NativeHandle {
         HINSTANCE hinstance;
         HWND hwnd;
+        HDC  hdc;
     };
 
     /**
@@ -759,6 +760,7 @@ private:
         native_ = {};
         native_.hinstance = GetModuleHandle(nullptr);
         native_.hwnd = hwnd_;
+        native_.hdc = hdc_;
 
         // Window created: call callback
         if (!OnCreate(windowSize_.w, windowSize_.h)) {

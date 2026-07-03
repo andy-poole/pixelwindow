@@ -40,6 +40,9 @@
 #define NOMINMAX
 #endif // NOMINMAX
 
+// Default window icon resource id
+#define IDI_ICON1 101
+
 #include <windows.h>
 #include <windowsx.h>
 #include <shellapi.h>
@@ -125,8 +128,8 @@ enum class Mouse
  */
 struct Point
 {
-    int x;
-    int y;
+    int x = 0;
+    int y = 0;
 
     constexpr bool operator==(const Point& other) const
     {
@@ -144,8 +147,13 @@ struct Point
  */
 struct Size
 {
-    unsigned w;
-    unsigned h;
+    unsigned w = 0;
+    unsigned h = 0;
+
+    constexpr bool operator!() const
+    {
+        return (w == 0) && (h == 0);
+    }
 
     constexpr bool operator==(const Size& other) const
     {
@@ -163,8 +171,8 @@ struct Size
  */
 struct Rect
 {
-    Point origin;
-    Size size;
+    Point origin = {};
+    Size size = {};
 
     constexpr bool operator==(const Rect& other) const
     {
@@ -706,16 +714,27 @@ private:
         // timer to 1ms
         timeBeginPeriod(1);
 
+        // Instance of this executable
+        HINSTANCE hInstance = GetModuleHandle(nullptr);
+
         // Must be destroyed with DeleteObject
         hbrush_ = CreateSolidBrush(RGB(0, 0, 0));
+
+        // If an icon has been created as a
+        // resource, try to use it
+        auto TryLoadIcon = [hInstance](int id) -> HICON {
+            auto icon = LoadIconA(hInstance, MAKEINTRESOURCE(id));
+            return (icon) ? icon :
+                LoadIconA(nullptr, IDI_APPLICATION);
+        };
 
         wndclass_.style = CS_OWNDC;
         wndclass_.lpfnWndProc = WndProc;
         wndclass_.cbClsExtra = 0;
         wndclass_.cbWndExtra = 0;
-        wndclass_.hInstance = GetModuleHandle(nullptr);
-        wndclass_.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-        wndclass_.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wndclass_.hInstance = hInstance;
+        wndclass_.hIcon = TryLoadIcon(IDI_ICON1);
+        wndclass_.hCursor = LoadCursorA(nullptr, IDC_ARROW);
         wndclass_.hbrBackground = hbrush_;
         wndclass_.lpszMenuName = nullptr;
         wndclass_.lpszClassName = "pixelwindow_class";
@@ -755,10 +774,9 @@ private:
         hdc_ = GetDC(hwnd_);
 
         WindowSizeUpdated();
-        CanvasSizeUpdated();
 
         native_ = {};
-        native_.hinstance = GetModuleHandle(nullptr);
+        native_.hinstance = hInstance;
         native_.hwnd = hwnd_;
         native_.hdc = hdc_;
 
@@ -1085,7 +1103,6 @@ private:
         XSetWMProtocols(display_, window_, &WM_DELETE_WINDOW, 1);
 
         WindowSizeUpdated();
-        CanvasSizeUpdated();
 
         native_= {};
         native_.display = display_;
@@ -1415,16 +1432,16 @@ public:
     {
         windowSize_ = { width, height };
 
-        // Set the canvas size to the window
-        // size if it hasn't already been set
-        if ((canvasSize_.w == 0) && (canvasSize_.h == 0)) {
-            canvasSize_ = { width, height };
-        }
-
         // Set the window title only if it
         // hasn't already been set
         if (windowTitle_.empty()) {
             windowTitle_ = title;
+        }
+
+        // Set the canvas size only if it
+        // hasn't already been set
+        if (!canvasSize_) {
+            SetCanvasSize(width, height);
         }
 
         // This will block the thread

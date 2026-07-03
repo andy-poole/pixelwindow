@@ -79,18 +79,25 @@ For a working example, which draws a square in the centre of the window, please 
 
 | Callback Name | Description |
 | --- | --- |
-| OnCreate | Called just after the window was created but before it is displayed. The window width and height are passed to the callback. |
-| OnDestroy | Called just before the window is destroyed. Use this to free resources created in `OnCreate`. |
-| OnFocusChanged | Called when the window is brought to the foreground or sent into the background. The focus state (`true`: has focus, `false`: lost focus) is passed to the callback. |
-| OnDropFile | Called when a user drops a file onto the window. The path of the file (as a `std::string`) is passed to the callback. |
-| OnUpdateFrame | Regularly called in the window's message loop. By default, this will be called as fast as possible (unless an "update interval" has been set) and should be used to update the window's canvas using the PixelWindow's pixel drawing methods. The time (in milliseconds) since the last update is passed to the callback. Returning `true` from this method will result in presenting the canvas to the window. |
-| OnKeyPress | Called when there is a key event on the window. The `Key` key and the "down" state (`true`: key-down, `false`: key-up) is passed to the callback. |
-| OnMouseClick | Called when there is a mouse click event on the window. The `Mouse` button, window coordinate, and the "down" state (`true`: button-down, `false`: button-up) is passed to the callback. |
-| OnResize | Called when there is a resize event on the window. The new window width and height are passed to the callback. |
+| `OnCreate` | Called just after the window was created but before it is displayed. The window width and height are passed to the callback. |
+| `OnDestroy` | Called just before the window is destroyed. Use this to free resources created in `OnCreate`. |
+| `OnFocusChanged` | Called when the window is brought to the foreground or sent into the background. The focus state (`true`: has focus, `false`: lost focus) is passed to the callback. |
+| `OnDropFile` | Called when a user drops a file onto the window. The path of the file (as a `std::string`) is passed to the callback. Windows only. |
+| `OnUpdateFrame` | Regularly called in the window's message loop. By default, this will be called as fast as possible (unless an "update interval" has been set) and should be used to update the window's canvas using the PixelWindow's pixel drawing methods. The time (in milliseconds) since the last update is passed to the callback. Returning `true` from this method will result in presenting the canvas to the window. |
+| `OnKeyPress` | Called when there is a key event on the window. The `Key` key and the "down" state (`true`: key-down, `false`: key-up) is passed to the callback. |
+| `OnMouseClick` | Called when there is a mouse click event on the window. The `Mouse` button, window coordinate, and the "down" state (`true`: button-down, `false`: button-up) is passed to the callback. |
+| `OnResize` | Called when there is a resize event on the window. The new window width and height are passed to the callback. |
 
 Although callbacks are called synchronously in the main event loop, the PixelWindow makes no attempt at thread synchronisation. If multithreading is desired, synchronisation should be handled by the application itself.
 
 The PixelWindow provides a number of additional public and protected methods, which can be used by a derived class to update the contents of the PixelWindow's internal canvas and state. Please see "pixelwindow/window.h" for more details on these functions.
+
+## Window Icon (Windows Only)
+When targeting the Windows operating system, the PixelWindow can use an icon that is embedded into the executable. In your application's .rc file, create an icon resource with an ID of 101. For example:
+```
+#define IDI_ICON1 101
+IDI_ICON1 ICON "icon.ico"
+```
 
 ## High-Level Design
 For reference, the following diagram shows how the classes are related for the "basic" demo:
@@ -146,6 +153,7 @@ Releases:
 Known issues and limitations:
 * Linux/Xlib implementation uses a (slow) CPU-based scaler
 * Linux/Xlib implementation does not support the `OnDropFile` callback
+* Linux/Xlib implementation does not support icons
 
 ## Final Remarks
 The PixelWindow project is deliberately simple - it was originally created for my Mega Drive emulator as a way of presenting to the screen. Because of this, the implementation is limited to the minimum functionality required for the emulator. The code is released under an MIT licence, so do what you want with it :D

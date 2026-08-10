@@ -773,6 +773,9 @@ private:
         // Device/Graphics context for the window
         hdc_ = GetDC(hwnd_);
 
+        // Set the blit mode for presenting
+        SetStretchBltMode(hdc_, COLORONCOLOR);
+
         WindowSizeUpdated();
 
         native_ = {};
@@ -1543,16 +1546,22 @@ protected:
      */
     void SetPixel(unsigned x, unsigned y, Pixel pixel, bool force = false)
     {
+        // Ignore out-of-bound coordinates
+        if (x >= canvasSize_.w || y >= canvasSize_.h) {
+            return;
+        }
+
         // Don't set the pixel if transparent
         if ((pixel.bgra.a == 0) && (!force)) {
             return;
         }
 
         const unsigned offset = (y * canvasSize_.w) + x;
-
-        if (offset < canvasData_.size()) {
-            canvasData_[offset] = pixel;
+        if (offset >= canvasData_.size()) {
+            return;
         }
+
+        canvasData_[offset] = pixel;
     }
 
     /**
@@ -1564,14 +1573,17 @@ protected:
      */
     Pixel GetPixel(unsigned x, unsigned y) const
     {
-        const unsigned offset = (y * canvasSize_.w) + x;
-
-        Pixel pixel = {};
-        if (offset < canvasData_.size()) {
-            pixel = canvasData_[offset];
+        // Ignore out-of-bound coordinates
+        if (x >= canvasSize_.w || y >= canvasSize_.h) {
+            return {};
         }
 
-        return pixel;
+        const unsigned offset = (y * canvasSize_.w) + x;
+        if (offset >= canvasData_.size()) {
+            return {};
+        }
+
+        return canvasData_[offset];
     }
 
     /**

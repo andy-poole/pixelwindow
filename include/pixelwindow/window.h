@@ -809,11 +809,6 @@ private:
         return !quit;
     }
 
-    void WaitForVSync()
-    {
-        // TODO
-    }
-
     void Present(const Rect& dstRect)
     {
         if (!hwnd_ || !hdc_ || !dstRect.size.w || !dstRect.size.h) {
@@ -837,10 +832,6 @@ private:
             DIB_RGB_COLORS,
             SRCCOPY
         );
-
-        // Block until the compositor has finished
-        // compositing this frame.
-        WaitForVSync();
     }
 
     void EndMainLoop()
@@ -1130,7 +1121,7 @@ private:
             // Client Events
             if (event.type == ClientMessage) {
                 Atom protocol = event.xclient.data.l[0];
-                if(protocol == WM_DELETE_WINDOW) {
+                if (protocol == WM_DELETE_WINDOW) {
                     quit = true;
                     break;
                 }
@@ -1239,11 +1230,6 @@ private:
         }
     }
 
-    void WaitForVSync()
-    {
-        // TODO
-    }
-
     void Present(const Rect& dstRect)
     {
         if (!display_ || window_ == 0 || !dstRect.size.w || !dstRect.size.h) {
@@ -1293,10 +1279,6 @@ private:
             dstRect.size.h
         );
         XFlush(display_);
-
-        // Block until the compositor has finished
-        // compositing this frame.
-        WaitForVSync();
     }
 
     void EndMainLoop()
@@ -1551,9 +1533,6 @@ protected:
     /**
      * Sets a pixel on the window's canvas
      *
-     * There is no bounds-checking on the position. It
-     * is assumed that the user passes a valid point.
-     *
      * Note that if a pixel's alpha value is 0, it will
      * not be set.
      *
@@ -1578,9 +1557,6 @@ protected:
 
     /**
      * Gets a pixel on the window's canvas
-     *
-     * There is no bounds-checking on the position. It
-     * is assumed that the user passes a valid point.
      *
      * @param x x-position in canvas coordinates
      * @param y y-position in canvas coordinates
@@ -1774,9 +1750,11 @@ private:
             } else {
                 // If there is more than 1ms to the target update
                 // time, we can sleep for a bit to save CPU
-                auto sleepUntil = targetUpdateTime - std::chrono::milliseconds(1);
+                auto sleepUntil = targetUpdateTime - std::chrono::milliseconds(2);
                 if (now < sleepUntil) {
                     std::this_thread::sleep_until(sleepUntil);
+                } else {
+                    std::this_thread::yield();
                 }
             }
         }

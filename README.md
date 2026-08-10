@@ -8,7 +8,15 @@ As well as creating a window, the PixelWindow creates an internal canvas, which 
 The current implementation of the PixelWindow requires C++17.
 
 ## Usage
-The PixelWindow class is an abstract class which must be extended in order to be used. It provides a number of callback interfaces, which are called during various points in the window's lifetime. In order to create a window, simply include the "pixelwindow/window.h" header file and extend the `ap::PixelWindow` class, optionally implementing its callback interfaces:
+The PixelWindow class is an abstract class which must be extended in order to be used. It provides a number of callback interfaces, which are called during various points in the window's lifetime.
+
+If you are using CMake, add the `PixelWindow::Headers` alias to your link libraries:
+```cmake
+add_subdirectory(pixelwindow)
+target_link_libraries(myapp PRIVATE PixelWindow::Headers)
+```
+
+In order to create a window, simply include the "pixelwindow/window.h" header file and extend the `ap::PixelWindow` class, optionally implementing its callback interfaces:
 ```c++
 #include "pixelwindow/window.h"
 
@@ -135,7 +143,7 @@ In the above diagram, note that the `ap::PixelWindowBase` is an OS-specific impl
 ## Building the Demos
 The demo applications use CMake to generate their project build files. In order to generate a project, the following command can be used:
 ```bash
-cmake -B build .
+cmake -Bbuild -DBUILD_DEMOS=ON
 ```
 
 The demos can then be built using the following command:
@@ -143,7 +151,7 @@ The demos can then be built using the following command:
 cmake --build build
 ```
 
-For more information on the build requirements, please see the CMakeLists.txt files for each demo project.
+For more information on using the PixelWindow CMake library, please see the CMakeLists.txt files for the demo projects.
 
 ## Releases and Issues
 Releases:

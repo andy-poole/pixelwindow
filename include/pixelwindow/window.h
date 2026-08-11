@@ -823,13 +823,13 @@ private:
 
         StretchDIBits(
             hdc_,
-            dstRect.origin.x, // dest x
-            dstRect.origin.y, // dest y
-            dstRect.size.w,   // dest width
-            dstRect.size.h,   // dest height
-            0, 0,             // src x,y
-            canvasSize_.w,    // src width
-            canvasSize_.h,    // src height
+            dstRect.origin.x,
+            dstRect.origin.y,
+            static_cast<int>(dstRect.size.w),
+            static_cast<int>(dstRect.size.h),
+            0, 0,
+            static_cast<int>(canvasSize_.w),
+            static_cast<int>(canvasSize_.h),
             canvasData_.data(),
             &canvasBitmapInfo_,
             DIB_RGB_COLORS,
@@ -1059,7 +1059,7 @@ private:
         screen_ = DefaultScreen(display_);
         visual_ = XDefaultVisual(display_, screen_);
 
-        const unsigned black = BlackPixel(display_, screen_);
+        const auto black = static_cast<unsigned>(BlackPixel(display_, screen_));
 
         XSetWindowAttributes attributes = {};
         attributes.background_pixel = black;
@@ -1078,7 +1078,7 @@ private:
             windowSize_.w,
             windowSize_.h,
             0, // border size
-            DefaultDepth(display_, screen_), // depth
+            DefaultDepth(display_, screen_),
             InputOutput,
             visual_,
             CWBackPixel | CWBorderPixel | CWEventMask,
@@ -1123,7 +1123,7 @@ private:
 
             // Client Events
             if (event.type == ClientMessage) {
-                Atom protocol = event.xclient.data.l[0];
+                auto protocol = static_cast<Atom>(event.xclient.data.l[0]);
                 if (protocol == WM_DELETE_WINDOW) {
                     quit = true;
                     break;
@@ -1257,7 +1257,7 @@ private:
             scaledCanvasImageInfo_ = XCreateImage(
                 display_,
                 visual_,
-                DefaultDepth(display_, screen_),
+                static_cast<unsigned>(DefaultDepth(display_, screen_)),
                 ZPixmap, // uses 4 bytes per pixel
                 0,
                 reinterpret_cast<char*>(scaledCanvasData_.data()),
@@ -1593,7 +1593,7 @@ protected:
      * filled with a solid colour. Otherwise it will have
      * a 1 pixel (internal) border.
      *
-     * The rectangle is clipped to the canvas size.
+     * The rectangle size is clamped to the canvas size.
      *
      * Note that if a pixel's alpha value is 0, this
      * function has no effect.
@@ -1612,7 +1612,7 @@ protected:
             return;
         }
 
-        // Clip to canvas size
+        // Clamp to canvas size
         const unsigned xEnd = std::min(x + w, canvasSize_.w);
         const unsigned yEnd = std::min(y + h, canvasSize_.h);
 
@@ -1620,7 +1620,7 @@ protected:
             return;
         }
 
-        // Update w and h from clipped size
+        // Update w and h from clamped size
         w = xEnd - x;
         h = yEnd - y;
 
@@ -1655,7 +1655,7 @@ protected:
      * data is incomplete, the remaining pixels of the
      * rectangle will be filled with COLOR_NONE.
      *
-     * The rectangle is clipped to the canvas size.
+     * The rectangle size is clamped to the canvas size.
      *
      * Note that if a pixel's alpha value is 0, it will
      * not be set.
@@ -1668,7 +1668,7 @@ protected:
      */
     void DrawRect(unsigned x, unsigned y, unsigned w, unsigned h, const std::vector<Pixel>& pixels)
     {
-        // Clip to canvas size
+        // Clamp to canvas size
         const unsigned xEnd = std::min(x + w, canvasSize_.w);
         const unsigned yEnd = std::min(y + h, canvasSize_.h);
 
@@ -1676,7 +1676,7 @@ protected:
             return;
         }
 
-        // Update w and h from clipped size
+        // Update w and h from clamped size
         w = xEnd - x;
         h = yEnd - y;
 

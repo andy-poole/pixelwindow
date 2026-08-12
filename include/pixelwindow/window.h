@@ -239,7 +239,7 @@ public:
      * Version: v0.2.0
      * Format:  major=[15..12], minor=[11..8], patch[7..0]
      */
-    static constexpr uint16_t VERSION = 0x0200;
+    static constexpr uint16_t VERSION = 0x0300;
 
     /**
      * Public IPixelWindow destructor

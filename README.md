@@ -1,16 +1,16 @@
 # PixelWindow Project
 
 ## Introduction
-A PixelWindow is a simple, callback-based abstraction for a window on the Windows and Linux operating systems (using Xlib). The abstraction enables the simple creation of a window simply by extending the PixelWindow class, hiding platform-specific details and complexities. The PixelWindow abstraction is deliberately designed to be a simple (CPU-based) way of creating a window and is not intended to be a UI framework.
+A PixelWindow is a simple, callback-based abstraction for a window on the Windows and Linux operating systems (using Xlib). The abstraction enables the creation of a window simply by extending the PixelWindow class, hiding platform-specific details and complexities. The PixelWindow abstraction is deliberately designed to be a simple (CPU-based) way of creating a window and is not intended to be a UI framework.
 
 As well as creating a window, the PixelWindow creates an internal canvas, which can be updated using its pixel drawing methods. The canvas size can be set independently to the window and then scaled when presenting.
 
-The current implementation of the PixelWindow requires C++17.
+The current implementation of the PixelWindow requires C++17. For Linux, PixelWindow depends on X11 (`libx11-dev`).
 
 ## Usage
 The PixelWindow class is an abstract class which must be extended in order to be used. It provides a number of callback interfaces, which are called during various points in the window's lifetime.
 
-If you are using CMake, add the `PixelWindow::Headers` alias to your link libraries:
+In order to incorporate the PixelWindow header in a CMake-based project, add the repository as a git submodule and add the `PixelWindow::Headers` alias to your target's link libraries:
 ```cmake
 add_subdirectory(pixelwindow)
 target_link_libraries(myapp PRIVATE PixelWindow::Headers)
@@ -67,7 +67,7 @@ bool OnUpdateFrame(double millis) override
 }
 ```
 
-Note that the `ap::PixelWindow::ClearCanvas` method shown in the above example will set all pixels of the canvas to a given colour, or NONE if no argument is given (NONE is equal to Pixel(0,0,0,0)). The `ap::Pixel` union represents a Pixel with red, green, blue, and alpha channels. It is internally represented as BGRA to match the underlying window surface. It contains four bytes packed into a 32-bit value, where on a little-endian system, the LSB contains the blue channel and the MSB contains the alpha channel:
+Note that the `ap::PixelWindow::ClearCanvas` method shown in the above example will set all pixels of the canvas to a given colour, or `COLOR_NONE` if no argument is given (`COLOR_NONE` is equal to `Pixel(0,0,0,0)`). The `ap::Pixel` union represents a Pixel with red, green, blue, and alpha channels. It is internally represented as BGRA to match the underlying window surface format. It contains four bytes packed into a 32-bit value, where on a little-endian system, the LSB contains the blue channel and the MSB contains the alpha channel:
 ```c++
 // Stored in memory as: [ BB GG RR AA ]
 union Pixel {
@@ -155,6 +155,7 @@ For more information on using the PixelWindow CMake library, please see the CMak
 
 ## Releases and Issues
 Releases:
+* `v0.3` - Add Windows icon support and a CMake library alias
 * `v0.2` - Added basic support for Linux (Xlib)
 * `v0.1` - Initial release supporting Windows and the basic demo project
 

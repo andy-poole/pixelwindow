@@ -155,9 +155,10 @@ For more information on using the PixelWindow CMake library, please see the CMak
 
 ## Releases and Issues
 Releases:
-* `v0.3` - Add Windows icon support and a CMake library alias
-* `v0.2` - Added basic support for Linux (Xlib)
-* `v0.1` - Initial release supporting Windows and the basic demo project
+* `v0.3.1` - Minor bug fixes to "time delta" and fps calculations
+* `v0.3.0` - Add Windows icon support and a CMake library alias
+* `v0.2.0` - Added basic support for Linux (Xlib)
+* `v0.1.0` - Initial release supporting Windows and the basic demo project
 
 Known issues and limitations:
 * Linux/Xlib implementation uses a (slow) CPU-based scaler

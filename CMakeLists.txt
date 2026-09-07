@@ -10,8 +10,7 @@ target_include_directories(${PROJECT_NAME} INTERFACE include)
 # PixelWindow requires C++17
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
 
-if(UNIX)
-# X11 is required for Linux builds
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 find_package(X11 REQUIRED)
 target_link_libraries(${PROJECT_NAME} INTERFACE X11::X11)
 endif()

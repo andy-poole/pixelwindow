@@ -236,10 +236,10 @@ class IPixelWindow
 {
 public:
     /**
-     * Version: v0.2.0
+     * Version: v0.3.1
      * Format:  major=[15..12], minor=[11..8], patch[7..0]
      */
-    static constexpr uint16_t VERSION = 0x0300;
+    static constexpr uint16_t VERSION = 0x0301;
 
     /**
      * Public IPixelWindow destructor
@@ -692,14 +692,14 @@ private:
             const int x = GET_X_LPARAM(lParam);
             const int y = GET_Y_LPARAM(lParam);
             window->OnMouseClick(btn, x, y, true);
-            return 0;
+            return TRUE;
         }
         case WM_XBUTTONUP: {
             const auto btn = (HIWORD(wParam) == XBUTTON1) ? Mouse::X1 : Mouse::X2;
             const int x = GET_X_LPARAM(lParam);
             const int y = GET_Y_LPARAM(lParam);
             window->OnMouseClick(btn, x, y, false);
-            return 0;
+            return TRUE;
         }
         default:
             break;

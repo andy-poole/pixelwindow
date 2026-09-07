@@ -1409,7 +1409,7 @@ public:
      */
     void SetUpdateInterval(double ms)
     {
-        updateInterval_ = std::chrono::duration<double>(ms / 1000.0);
+        updateInterval_ = std::chrono::duration<double>(std::max(0.0, ms) / 1000.0);
     }
 
     /**
@@ -1726,7 +1726,8 @@ private:
         using clock = std::chrono::steady_clock;
 
         // The time we want to next call OnUpdateFrame
-        auto targetUpdateTime = clock::now();
+        auto lastUpdateTime = clock::now();
+        auto targetUpdateTime = lastUpdateTime;
 
         auto fpsTimer = targetUpdateTime;
         unsigned fpsFrameCount = 0;
@@ -1741,21 +1742,21 @@ private:
 
             if (now >= targetUpdateTime) {
                 // Calculate time since last frame update.
-                // The difference between now and target
-                // update time gives the drift from the
-                // desired update time. Adding the
-                // fixed update interval gives the time to
-                // when the last OnFrameUpdate was last called.
-                auto drift = now - targetUpdateTime;
-                std::chrono::duration<double> update_dt = drift + updateInterval_;
+                // The drift is the difference between
+                // now and target update time. It is the
+                // amount of time we have gone past the
+                // desired update time.
+                std::chrono::duration<double> drift = now - targetUpdateTime;
+                std::chrono::duration<double> delta = now - lastUpdateTime;
 
                 // Update and optionally present
-                bool present = OnUpdateFrame(update_dt.count() * 1000.0);
+                bool present = OnUpdateFrame(delta.count() * 1000.0);
                 if (present) {
                     Present(scaledCanvasRect_);
                 }
 
                 // Update the time to next call OnUpdateFrame
+                lastUpdateTime = now;
                 targetUpdateTime += std::chrono::duration_cast<clock::duration>(updateInterval_);
 
                 // If we are running slowly due to a heavy
@@ -1772,7 +1773,7 @@ private:
                 if (fps_dt.count() >= 0.5) {
                     // The window title fps has updated
                     WindowTitleUpdated(true, fpsFrameCount / fps_dt.count());
-                    fpsTimer = clock::now();
+                    fpsTimer = now;
                     fpsFrameCount = 0;
                 }
             } else {

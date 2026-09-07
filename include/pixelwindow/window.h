@@ -741,7 +741,7 @@ private:
 
         if (RegisterClassA(&wndclass_) == 0) {
             return false;
-        };
+        }
 
         DWORD dwStyle = WS_OVERLAPPEDWINDOW;
 
@@ -1281,6 +1281,7 @@ private:
             dstRect.size.w,
             dstRect.size.h
         );
+
         XFlush(display_);
     }
 
@@ -1537,7 +1538,7 @@ protected:
      * Sets a pixel on the window's canvas
      *
      * Note that if a pixel's alpha value is 0, it will
-     * not be set.
+     * not be set (unless ignored).
      *
      * @param x x-position in canvas coordinates
      * @param y y-position in canvas coordinates
@@ -1653,7 +1654,8 @@ protected:
      * pixel data. It is filled one row at a time, from
      * top to bottom of the rectangle. If the array of
      * data is incomplete, the remaining pixels of the
-     * rectangle will be filled with COLOR_NONE.
+     * rectangle will be treated as COLOR_NONE and left
+     * unchanged (alpha = 0).
      *
      * The rectangle size is clamped to the canvas size.
      *
@@ -1676,6 +1678,9 @@ protected:
             return;
         }
 
+        // Save the stride for indexing into pixels
+        const unsigned stride = w;
+
         // Update w and h from clamped size
         w = xEnd - x;
         h = yEnd - y;
@@ -1683,12 +1688,10 @@ protected:
         // Start at top-left of rectangle
         unsigned offset = (y * canvasSize_.w) + x;
 
-        size_t p = 0;
-
         for (unsigned j = 0; j < h; ++j) {
             for (unsigned i = 0; i < w; ++i) {
+                const size_t p = (j * stride) + i;
                 const auto pixel = (p < pixels.size()) ? pixels[p] : COLOR_NONE;
-                ++p;
 
                 // Don't set the pixel if transparent
                 if (pixel.bgra.a != 0) {

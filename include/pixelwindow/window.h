@@ -532,10 +532,10 @@ private:
         return map;
     }
 
-    void WindowTitleUpdated(double fps, bool showFps)
+    void WindowTitleUpdated(bool showFps, double fps = 0.0)
     {
         if (hwnd_) {
-            char str[256] = {};
+            char str[512] = {};
             if (showFps) {
                 snprintf(str, sizeof(str), "%s (fps: %.1f)", windowTitle_.c_str(), fps);
             } else {
@@ -720,6 +720,10 @@ private:
         // Must be destroyed with DeleteObject
         hbrush_ = CreateSolidBrush(RGB(0, 0, 0));
 
+        if (!hbrush_) {
+            return false;
+        }
+
         // If an icon has been created as a
         // resource, try to use it
         auto TryLoadIcon = [hInstance](int id) -> HICON {
@@ -772,6 +776,11 @@ private:
 
         // Device/Graphics context for the window
         hdc_ = GetDC(hwnd_);
+
+        if (!hdc_) {
+            DestroyWindow(hwnd_);
+            return false;
+        }
 
         // Set the blit mode for presenting
         SetStretchBltMode(hdc_, COLORONCOLOR);
@@ -1006,10 +1015,10 @@ private:
         return map;
     }
 
-    void WindowTitleUpdated(double fps, bool showFps)
+    void WindowTitleUpdated(bool showFps, double fps = 0.0)
     {
         if (display_ && window_ != 0) {
-            char str[256] = {};
+            char str[512] = {};
             if (showFps) {
                 snprintf(str, sizeof(str), "%s (fps: %.1f)", windowTitle_.c_str(), fps);
             } else {
@@ -1267,6 +1276,10 @@ private:
             );
         }
 
+        if (!scaledCanvasImageInfo_) {
+            return;
+        }
+
         // Scale the canvas using "nearest" filtering
         ScaleNearest(canvasData_, canvasSize_, scaledCanvasData_, scaledCanvasSize_);
 
@@ -1381,7 +1394,7 @@ public:
     void SetWindowTitle(const std::string& title)
     {
         windowTitle_ = title;
-        WindowTitleUpdated(0.0, false);
+        WindowTitleUpdated(false);
     }
 
     /**
@@ -1757,8 +1770,8 @@ private:
                 ++fpsFrameCount;
                 auto fps_dt = std::chrono::duration<double>(now - fpsTimer);
                 if (fps_dt.count() >= 0.5) {
-                    double fps = fpsFrameCount / fps_dt.count();
-                    WindowTitleUpdated(fps, true);
+                    // The window title fps has updated
+                    WindowTitleUpdated(true, fpsFrameCount / fps_dt.count());
                     fpsTimer = clock::now();
                     fpsFrameCount = 0;
                 }

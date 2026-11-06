@@ -155,6 +155,7 @@ For more information on using the PixelWindow CMake library, please see the CMak
 
 ## Releases and Issues
 Releases:
+* `v0.3.2` - Canvas data is correctly cleared on resize
 * `v0.3.1` - Minor bug fixes to "time delta" and fps calculations
 * `v0.3.0` - Add Windows icon support and a CMake library alias
 * `v0.2.0` - Added basic support for Linux (Xlib)

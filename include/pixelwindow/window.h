@@ -236,10 +236,10 @@ class IPixelWindow
 {
 public:
     /**
-     * Version: v0.3.1
+     * Version: v0.3.2
      * Format:  major=[15..12], minor=[11..8], patch[7..0]
      */
-    static constexpr uint16_t VERSION = 0x0301;
+    static constexpr uint16_t VERSION = 0x0302;
 
     /**
      * Public IPixelWindow destructor
@@ -576,7 +576,7 @@ private:
         ClearWindow();
 
         auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
-        canvasData_.resize(pixels);
+        canvasData_.assign(pixels, {});
 
         canvasBitmapInfo_ = {};
         BITMAPINFOHEADER& h = canvasBitmapInfo_.bmiHeader;
@@ -917,6 +917,7 @@ public:
     struct NativeHandle {
         Display* display;
         Window window;
+        VisualID visualID;
     };
 
     /**
@@ -1052,7 +1053,7 @@ private:
         ClearWindow();
 
         auto pixels = size_t(canvasSize_.w) * size_t(canvasSize_.h);
-        canvasData_.resize(pixels);
+        canvasData_.assign(pixels, {});
 
         // Cache for blitting the canvas to window
         scaledCanvasRect_ = GetScaledRect(canvasSize_, windowSize_);
@@ -1110,6 +1111,7 @@ private:
         native_= {};
         native_.display = display_;
         native_.window = window_;
+        native_.visualID = XVisualIDFromVisual(visual_);
 
         // Window created: call callback
         if (!OnCreate(windowSize_.w, windowSize_.h)) {
@@ -1457,13 +1459,9 @@ public:
         return native_;
     }
 
-    // Disable copying
+    // Disable copying and moving
     PixelWindow(const PixelWindow&) = delete;
     PixelWindow& operator=(const PixelWindow&) = delete;
-
-    // Disable moving
-    PixelWindow(PixelWindow&&) = delete;
-    PixelWindow& operator=(PixelWindow&&) = delete;
 
 protected:
     /**
